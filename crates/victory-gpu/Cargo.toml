@@ -18,10 +18,16 @@ victory-shader = { workspace = true, features = ["host"] }
 [dev-dependencies]
 tracing-subscriber.workspace = true
 tempfile.workspace = true
+# Itself, with what its own tests of the frame recorder need
+# (`tests/replay.rs` runs a made-up frame through the host layer).
+victory-gpu = { path = ".", features = ["replay-testing"] }
 
 [features]
 # Debugging switches (frame capture, the host debug layer, per-draw data).
 diagnostics = []
+# A made-up frame run through the host layer, for the tests of the frame
+# recorder (`replay::testing`). Not in any build of the runtime.
+replay-testing = []
 
 [lints]
 workspace = true

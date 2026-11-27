@@ -7,6 +7,8 @@ mod census;
 mod inspect;
 #[cfg(windows)]
 mod prebuild;
+#[cfg(windows)]
+mod replay;
 mod run;
 mod shader;
 #[cfg(windows)]
@@ -152,6 +154,10 @@ enum Command {
         #[arg(long, hide = true)]
         these: Option<String>,
     },
+    /// Run a captured frame's GPU work again without the title, with what
+    /// it costs and experiments on it (docs/replay.md).
+    #[cfg(windows)]
+    Replay(replay::Replay),
     /// Show the resolved configuration and check it.
     Config,
     /// Check the host D3D12 device for mesh shaders and shader model 6.6.
@@ -256,6 +262,8 @@ fn main() -> Result<()> {
         }
         #[cfg(windows)]
         Command::Warm { jobs, limit, again, used, these } => warm::run(jobs, limit, again, used, these),
+        #[cfg(windows)]
+        Command::Replay(options) => replay::run(options),
         Command::Config => show_config(),
         Command::GpuCheck => gpu_check(),
     }

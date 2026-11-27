@@ -310,6 +310,9 @@ fn create() -> windows::core::Result<Host> {
             crate::tdr::log();
         }
         let device = device.ok_or_else(windows::core::Error::empty)?;
+        // The frame recorder (`VICTORY_RECORD`, docs/replay.md), before
+        // anything is made with the device: it sees what the device makes.
+        crate::replay::record::from_env(&device);
         let mut options = D3D12_FEATURE_DATA_D3D12_OPTIONS2::default();
         let depth_bounds_supported = device
             .CheckFeatureSupport(
