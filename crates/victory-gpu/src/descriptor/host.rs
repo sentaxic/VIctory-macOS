@@ -815,6 +815,27 @@ impl HostHeap {
 
     /// Like [`HostHeap::sync_slots`], reading records that lie inside
     /// `buf` (`[buf_start, buf_start + buf.len())`) without re-reading title memory.
+/// Whether a heap sync leaves a slot as it is when the title wrote
+/// something other than a record of ours over it, zeros or its own bytes
+/// (`VICTORY_STALE_LEFT=1`; off without it).
+///
+/// The title keeps its own data in heap memory between its descriptors, so
+/// a sync by page finds many slots whose record is no longer one of ours
+/// and makes each null, which costs what making a view costs. Left, the
+/// slot keeps the view it had: a draw that reads it through a table finds
+/// the record is not the one it was made from and makes it null then
+/// (`HostHeap::slot_for`), and the title writing its old record back costs
+/// nothing. A record of ours that names no view (a released resource) is
+/// still made null, below.
+///
+/// After 64bitMango/VIctory-macOS, where it is on by default and measured
+/// heap syncs 35.4 -> 23.4 ms a frame with no visible change (#14). Off by
+/// default here until the same is measured on this stack.
+fn stale_left() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| crate::switch::on("VICTORY_STALE_LEFT"))
+}
+
     pub(crate) fn sync_slots_bytes(
         &self,
         first: u32,
@@ -851,7 +872,7 @@ impl HostHeap {
             };
             let [tag, view, generation] = record;
             if tag != VIEW_TAG {
-                if self.made_is_nonzero(i) {
+                if self.made_is_nonzero(i) && !Self::stale_left() {
                     stale.push(i);
                 }
                 continue;

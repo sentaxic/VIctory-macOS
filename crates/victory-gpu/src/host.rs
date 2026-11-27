@@ -3471,7 +3471,7 @@ impl HostList {
 }
 
 /// A submission's refreshes not done yet, as the ranges of each buffer copy
-/// asked for (ranges less than [`JOIN`] apart are done as one): done before
+/// asked for (ranges less than [`join()`] apart are done as one): done before
 /// a step that writes title memory or gives a range to shaders, and before
 /// the lists run.
 ///
@@ -3510,7 +3510,26 @@ struct Batch {
 /// the bytes between copied too: a call that copies a range costs about
 /// what copying this much does at the 6-7 GB/s testers saw (a guess, not
 /// measured).
-const JOIN: usize = crate::watch::PAGE;
+///
+/// `VICTORY_COPY_JOIN=<KiB>` raises it. With small loose windows
+/// (`VICTORY_SMALL_LOOSE_WINDOWS=1`) a world frame asked for tens of
+/// thousands of ranges, whose per-call cost outweighed the bytes between
+/// them; joining further trades copied bytes for fewer calls.
+fn join() -> usize {
+    static BYTES: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    *BYTES.get_or_init(|| {
+        let kib: Option<usize> =
+            std::env::var("VICTORY_COPY_JOIN").ok().and_then(|v| v.trim().parse().ok());
+        match kib {
+            Some(kib) if kib > 0 => {
+                let bytes = kib.saturating_mul(1 << 10).next_multiple_of(crate::watch::PAGE);
+                tracing::info!(kib, bytes, "pending ranges joined further (VICTORY_COPY_JOIN)");
+                bytes
+            }
+            _ => crate::watch::PAGE,
+        }
+    })
+}
 
 impl Batch {
     fn add(&mut self, shadow: &std::sync::Arc<crate::shadow::Shadow>, address: usize, len: usize) {
@@ -3540,7 +3559,7 @@ impl Batch {
             self.refreshes.len() - 1
         });
         for (from, to) in todo {
-            self.refreshes[i].1.insert(from, to, JOIN);
+            self.refreshes[i].1.insert(from, to, join());
         }
     }
 
