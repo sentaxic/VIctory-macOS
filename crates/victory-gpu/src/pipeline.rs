@@ -197,6 +197,18 @@ pub(crate) struct Translated {
 
 #[cfg(windows)]
 impl Shader {
+    /// Its full BLAKE3, kept whether or not the container's bytes still are.
+    pub(crate) fn full_hash(&self) -> [u8; 32] {
+        self.full_hash
+    }
+
+    /// The container's bytes, empty once they have been released. Callers
+    /// that only name a shader should use [`Shader::full_hash`], which
+    /// outlives them.
+    pub(crate) fn container_bytes(&self) -> Vec<u8> {
+        self.container.lock().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
     /// The translation, made on first use (or taken from the cache); a
     /// shader that does not translate is logged once.
     pub(crate) fn translated(&self) -> Option<&Translated> {
@@ -643,6 +655,11 @@ fn hand_out(
         #[cfg(feature = "diagnostics")]
         skip_hashes(),
     ));
+    // Write the pipeline down for `victory warm` (VICTORY_PIPELINE_BOOK=1).
+    // Before `make::early`, so that a shader's container is still here: this
+    // tree releases containers after translation.
+    #[cfg(windows)]
+    known::note(&make::key(&shaders, host.graphics.as_deref()), &shaders, host.graphics.as_deref());
     #[cfg(windows)]
     make::early(&host);
     let pipeline = Box::new(Pipeline {
@@ -842,6 +859,8 @@ static FUNCTIONS: Table<24> = {
 #[cfg(windows)]
 pub(crate) mod host;
 #[cfg(windows)]
+pub mod known;
+#[cfg(windows)]
 mod library;
 #[cfg(windows)]
 mod make;
@@ -866,6 +885,7 @@ pub fn use_pipeline_cache(dir: std::path::PathBuf) {
 #[cfg(windows)]
 pub fn save_pipeline_cache() {
     library::save(true);
+    known::flush();
 }
 
 /// The pre-build: a title pipeline made ahead of a run into the pipeline

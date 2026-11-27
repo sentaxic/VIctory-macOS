@@ -49,6 +49,13 @@ pub fn counts() -> (u64, u64) {
     (HITS.load(Ordering::Relaxed), MISSES.load(Ordering::Relaxed))
 }
 
+/// What tells one set of translations from another ([`build`]). The warming
+/// of host pipelines keeps it beside them, so that a change of the
+/// translator makes the warmed ones stale.
+pub(crate) fn translation() -> [u8; 32] {
+    *build()
+}
+
 /// What a translation depends on besides its container: the translator
 /// (`victory_shader::SOURCE_HASH`: its sources, manifest, the lock file and
 /// the compiler), the entry's encoding (this file's text) and the

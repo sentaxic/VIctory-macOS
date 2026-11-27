@@ -1450,6 +1450,19 @@ pub fn host_mesh_support() -> Option<MeshSupport> {
 }
 
 impl Host {
+    /// The driver's version, as the system counts it (0: not known).
+    ///
+    /// Warming keeps this beside the pipelines it made, so that a new driver
+    /// makes them stale. Upstream reads it from the adapter it holds; this
+    /// tree does not keep one on [`Host`], and under Wine the number would
+    /// describe the Windows-side stub rather than the D3DMetal build that
+    /// actually compiles the pipelines. It answers "not known" until there is
+    /// something here worth comparing, which costs a stale warm cache across
+    /// a Game Porting Toolkit update: clear the folder by hand after one.
+    pub(crate) fn driver(&self) -> i64 {
+        0
+    }
+
     pub(crate) fn mesh_support(&self) -> MeshSupport {
         static MESH: OnceLock<MeshSupport> = OnceLock::new();
         *MESH.get_or_init(|| {
