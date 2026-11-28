@@ -274,6 +274,10 @@ pub fn run(
         return Ok(0);
     }
     victory_loader::report_crashes();
+    // Upstream also writes the pipeline book from a title thread's shutdown
+    // (`set_before_thread_shutdown`), which this loader has no hook for. The
+    // book is written on a clean exit and on a host GPU failure instead, so a
+    // run killed outright loses what it had recorded (VICTORY_PIPELINE_BOOK).
     victory_loader::log_crashes_to(temp.with_file_name("crashes.log"));
     victory_hle::runtime::use_console_timers();
     #[cfg(feature = "diagnostics")]
@@ -294,6 +298,8 @@ pub fn run(
     let code = main
         .join()
         .map_err(|_| anyhow::anyhow!("title main thread panicked"))??;
+    #[cfg(windows)]
+    victory_hle::known_pipelines::flush();
     println!("title exited with {code}");
     Ok(code)
 }

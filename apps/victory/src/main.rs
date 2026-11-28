@@ -13,6 +13,8 @@ mod run;
 mod shader;
 #[cfg(windows)]
 mod translate;
+#[cfg(windows)]
+mod warm;
 
 use std::num::NonZeroUsize;
 #[cfg(any(windows, test))]
@@ -143,6 +145,28 @@ enum Command {
     /// it costs and experiments on it (docs/replay.md).
     #[cfg(windows)]
     Replay(Box<replay::Replay>),
+    /// Make the host pipelines of every pipeline the title ever created
+    /// (runs with `VICTORY_PIPELINE_BOOK=1` write them down), so that the
+    /// driver's cache on disk has them before a run needs one: once per
+    /// change of the translator or the driver. Goes on where it was stopped.
+    #[cfg(windows)]
+    Warm {
+        /// Processes at once (default: two thirds of the logical cores).
+        #[arg(long)]
+        jobs: Option<usize>,
+        /// At most this many pipelines.
+        #[arg(long)]
+        limit: Option<usize>,
+        /// Those made before too.
+        #[arg(long)]
+        again: bool,
+        /// Only the pipelines earlier runs drew with.
+        #[arg(long)]
+        used: bool,
+        /// (What the processes it starts are given.)
+        #[arg(long, hide = true)]
+        these: Option<String>,
+    },
     /// Show the resolved configuration and check it.
     Config,
     /// Check the host D3D12 device for mesh shaders and shader model 6.6.
@@ -249,6 +273,8 @@ fn main() -> Result<()> {
         }
         #[cfg(windows)]
         Command::Replay(options) => replay::run(*options),
+        #[cfg(windows)]
+        Command::Warm { jobs, limit, again, used, these } => warm::run(jobs, limit, again, used, these),
         Command::Config => show_config(),
         Command::GpuCheck => gpu_check(),
     }

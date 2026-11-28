@@ -19,6 +19,8 @@ pub mod runtime;
 pub use host::HostPolicy;
 pub use registry::{HleExport, HleModule, registry};
 pub use victory_gpu::console;
+#[cfg(windows)]
+pub use victory_gpu::pipeline::known as known_pipelines;
 
 use victory_loader::{ImportResolver, Provenance, Resolution};
 use victory_pe::ImportSymbol;

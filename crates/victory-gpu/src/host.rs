@@ -2434,6 +2434,21 @@ pub fn host_mesh_support() -> Option<MeshSupport> {
     Some(host()?.mesh_support())
 }
 
+impl Host {
+    /// The driver's version, as the system counts it (0: not known).
+    ///
+    /// Warming keeps this beside the pipelines it made, so that a new driver
+    /// makes them stale. Under Wine the number the adapter gives would
+    /// describe the Windows-side stub rather than the D3DMetal build that
+    /// actually compiles the pipelines, so it answers "not known" until there
+    /// is something here worth comparing. That costs a stale warm cache
+    /// across a Game Porting Toolkit update: clear the folder by hand after
+    /// one.
+    pub(crate) fn driver(&self) -> i64 {
+        0
+    }
+}
+
 impl HostGpu for Host {
     type List = HostList;
     type Error = windows::core::Error;
