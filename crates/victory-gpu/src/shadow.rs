@@ -2428,6 +2428,21 @@ fn loose_window_size(asked: Option<bool>, rosetta: bool, total_ram: Option<u64>)
     if small { SMALL_WINDOW } else { LARGE_WINDOW }
 }
 
+/// Opt-in (`VICTORY_ALIAS_LOOSE=1`): a window of title memory outside any
+/// buffer is aliased onto its host buffer (zero copy, `crate::alias`)
+/// instead of being copied every submission, where every page of it is
+/// committed.
+///
+/// Off by default. A window is not an allocation of the title's: it is cut
+/// around whatever address a draw referenced, so nothing tells us when the
+/// title frees or reuses the memory under it, as `XMemFree` does for the
+/// buffers aliased at allocation. The remap also takes the window whole,
+/// so it claims the title's other data sharing those pages.
+fn alias_loose() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| crate::switch::on("VICTORY_ALIAS_LOOSE"))
+}
+
 /// Copies of title memory outside buffers, by (start, length).
 static LOOSE: Mutex<BTreeMap<(u64, u64), Arc<Shadow>>> = Mutex::new(BTreeMap::new());
 
@@ -2472,6 +2487,31 @@ fn loose(address: u64, end: u64) -> Option<Arc<Shadow>> {
     }
     if !crate::texture::committed(address as *const u8, 1) {
         return None;
+    }
+    // Zero-copy instead of a copy per submission, where the whole window is
+    // committed: the remap preserves the window's contents by reading every
+    // page of it first, so one uncommitted page would fault. The check above
+    // only vouches for the address asked about.
+    if alias_loose() && crate::texture::committed(start as *const u8, len as usize) {
+        drop(map);
+        if crate::alias::alias_region(start as usize, len as usize, true) {
+            tracing::debug!(
+                start = format_args!("{start:#x}"),
+                len,
+                "loose memory aliased zero-copy"
+            );
+            return find_aliased(address, end);
+        }
+        // Refused: another window aliased over it first, or the remap failed.
+        if let Some(shadow) = find_aliased(address, end) {
+            return Some(shadow);
+        }
+        map = LOOSE.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(shadow) =
+            enclosing_window(&map, LOOSE_SPAN.load(Ordering::Relaxed), address, end)
+        {
+            return Some(shadow.clone());
+        }
     }
     let (buffer, data) = host()?.shared_buffer(len)?;
     crate::host::name(&buffer, || format!("title memory {start:#x}+{len:#x}"));
